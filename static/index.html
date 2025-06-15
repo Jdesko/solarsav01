@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monitor Solar - Tempo Real</title>
+    <style>
+        :root {
+            --primary: #4285f4;
+            --generation: #34a853;
+            --import: #ea4335;
+            --consumption: #fbbc05;
+            --ev-charger: #673ab7;
+            --text: #202124;
+            --bg: #f8f9fa;
+            --card-bg: #ffffff;
+            --error: #d32f2f;
+            --warning: #ffa000;
+        }
+        
+        body {
+            font-family: 'Roboto', Arial, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+            width: 100%;
+            max-width: 800px;
+        }
+        
+        .header h1 {
+            color: var(--primary);
+            margin-bottom: 5px;
+        }
+        
+        .house-monitor {
+            position: relative;
+            width: 800px;
+            height: 600px;
+            background-image: url('static/casa-com-painéis-marcada.jpg');
+            background-size: contain;
+            background-repeat: no-repeat;
+            background-position: center;
+            margin-bottom: 20px;
+        }
+        
+        .energy-circle {
+            position: absolute;
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            font-weight: bold;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            z-index: 10;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        
+        .energy-circle:hover {
+            transform: scale(1.05);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
+        }
+        
+        .circle-value {
+            font-size: 16px;
+            margin-bottom: 2px;
+            font-family: 'Roboto Mono', monospace;
+        }
+        
+        .circle-label {
+            font-size: 11px;
+            text-align: center;
+            max-width: 70px;
+            line-height: 1.2;
+        }
+        
+        .circle-generation {
+            top: 70px;
+            left: 400px;
+            background-color: var(--generation);
+        }
+        
+        .circle-consumption {
+            top: 360px;
+            left: 265px;
+            background-color: var(--consumption);
+        }
+        
+        .circle-import {
+            top: 100px;
+            left: 120px;
+            background-color: var(--import);
+        }
+        
+        .circle-ev {
+            top: 360px;
+            left: 500px;
+            background-color: var(--ev-charger);
+        }
+        
+        .voltage-container {
+            background-color: var(--card-bg);
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            padding: 15px;
+            margin-bottom: 20px;
+            text-align: center;
+            width: 100%;
+            max-width: 300px;
+        }
+        
+        .voltage-header {
+            background-color: #9c27b0;
+            color: white;
+            padding: 8px 15px;
+            border-radius: 6px;
+            font-weight: bold;
+            margin-bottom: 15px;
+            display: inline-block;
+        }
+        
+        .voltage-value {
+            font-size: 24px;
+            font-weight: 500;
+            color: #9c27b0;
+            font-family: 'Roboto Mono', monospace;
+        }
+        
+        .footer {
+            width: 100%;
+            max-width: 800px;
+            text-align: center;
+        }
+        
+        .last-update {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 5px;
+        }
+        
+        .connection-status {
+            font-size: 12px;
+            padding: 3px 8px;
+            border-radius: 10px;
+            background-color: #e8f5e9;
+            color: #2e7d32;
+            display: inline-block;
+            margin-bottom: 10px;
+        }
+        
+        .connection-status.error {
+            background-color: #ffebee;
+            color: var(--error);
+        }
+        
+        .error-message {
+            color: var(--error);
+            text-align: center;
+            margin-top: 5px;
+            font-size: 13px;
+            min-height: 20px;
+        }
+        
+        .controls {
+            display: flex;
+            justify-content: center;
+            margin-top: 15px;
+            gap: 10px;
+        }
+        
+        .refresh-btn {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s;
+        }
+        
+        .refresh-btn:hover {
+            background-color: #3367d6;
+            transform: translateY(-1px);
+        }
+        
+        .refresh-btn:active {
+            transform: translateY(0);
+        }
+        
+        .loading {
+            animation: spin 1s linear infinite;
+        }
+        
+        .data-update {
+            animation: pulse 0.5s;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.05); opacity: 0.8; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        
+        @media (max-width: 850px) {
+            .house-monitor {
+                width: 100%;
+                height: 500px;
+                background-size: cover;
+            }
+            
+            .energy-circle {
+                width: 70px;
+                height: 70px;
+            }
+        }
+     </style>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500&family=Roboto+Mono&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="header">
+        <h1>Monitoramento Solar Residencial</h1>
+        <p>Fluxo de energia em tempo real</p>
+    </div>
+    
+    <div class="voltage-container">
+        <div class="voltage-header">Voltagem da Rede</div>
+        <div class="voltage-value" id="avgVoltage">--</div>
+    </div>
+    
+    <div class="house-monitor">
+        <div class="energy-circle circle-generation">
+            <div class="circle-value" id="generationPower">--</div>
+            <div class="circle-label">Produção Solar</div>
+        </div>
+        
+        <div class="energy-circle circle-consumption">
+            <div class="circle-value" id="consumptionPower">--</div>
+            <div class="circle-label">Consumo</div>
+        </div>
+        
+        <div class="energy-circle circle-import">
+            <div class="circle-value" id="importPower">--</div>
+            <div class="circle-label">Rede Elétrica</div>
+        </div>
+        
+        <div class="energy-circle circle-ev">
+            <div class="circle-value" id="evPower">--</div>
+            <div class="circle-label">Carregador EV</div>
+        </div>
+    </div>
+    
+    <div class="footer">
+        <div class="last-update" id="lastUpdate">
+            Última atualização: --
+        </div>
+        
+        <div id="connectionStatus" class="connection-status">
+            Conectado
+        </div>
+        
+        <div id="errorDisplay" class="error-message"></div>
+        
+        <div class="controls">
+            <button class="refresh-btn" id="refreshBtn">
+                <span id="refreshIcon">↻</span>
+                Atualizar Dados
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // Elements
+        const elements = {
+            avgVoltage: document.getElementById('avgVoltage'),
+            importPower: document.getElementById('importPower'),
+            consumptionPower: document.getElementById('consumptionPower'),
+            generationPower: document.getElementById('generationPower'),
+            evPower: document.getElementById('evPower'),
+            lastUpdate: document.getElementById('lastUpdate'),
+            connectionStatus: document.getElementById('connectionStatus'),
+            refreshBtn: document.getElementById('refreshBtn'),
+            refreshIcon: document.getElementById('refreshIcon'),
+            errorDisplay: document.getElementById('errorDisplay')
+        };
+
+        // Helpers
+        const helpers = {
+            formatNumber: (num) => {
+                const value = parseFloat(num);
+                if (isNaN(value)) return '--';
+                
+                return value.toLocaleString('pt-BR', {
+                    minimumFractionDigits: 1,
+                    maximumFractionDigits: 1
+                }) + ' W';
+            },
+            
+            formatVoltage: (num) => {
+                const value = parseFloat(num);
+                if (isNaN(value)) return '--';
+                
+                return value.toLocaleString('pt-BR', {
+                    minimumFractionDigits: 1,
+                    maximumFractionDigits: 1
+                }) + ' V';
+            },
+            
+            formatTime: (timestamp) => {
+                if (!timestamp) return '--';
+                const date = new Date(timestamp * 1000);
+                return date.toLocaleTimeString('pt-BR', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit'
+                });
+            },
+            
+            setLoading: (state) => {
+                if (state) {
+                    elements.refreshIcon.classList.add('loading');
+                    elements.refreshBtn.disabled = true;
+                } else {
+                    elements.refreshIcon.classList.remove('loading');
+                    elements.refreshBtn.disabled = false;
+                }
+            },
+            
+            showError: (message) => {
+                elements.errorDisplay.textContent = message;
+                setTimeout(() => {
+                    elements.errorDisplay.textContent = '';
+                }, 5000);
+            },
+            
+            updateConnectionStatus: (connected) => {
+                if (connected) {
+                    elements.connectionStatus.textContent = 'Conectado';
+                    elements.connectionStatus.classList.remove('error');
+                } else {
+                    elements.connectionStatus.textContent = 'Desconectado';
+                    elements.connectionStatus.classList.add('error');
+                }
+            }
+        };
+
+        // Real-time updates with SSE
+        let eventSource;
+        let reconnectTimeout;
+        const maxReconnectAttempts = 5;
+        let reconnectAttempts = 0;
+        const reconnectDelay = 3000;
+
+        function connectSSE() {
+            eventSource = new EventSource('/api/stream');
+            
+            eventSource.onopen = () => {
+                reconnectAttempts = 0;
+                helpers.updateConnectionStatus(true);
+            };
+            
+            eventSource.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    updateDisplay(data);
+                } catch (error) {
+                    console.error('Error parsing data:', error);
+                    helpers.showError('Erro ao processar dados');
+                }
+            };
+            
+            eventSource.onerror = () => {
+                helpers.updateConnectionStatus(false);
+                eventSource.close();
+                
+                if (reconnectAttempts < maxReconnectAttempts) {
+                    reconnectAttempts++;
+                    console.log(`Reconnecting attempt ${reconnectAttempts}`);
+                    reconnectTimeout = setTimeout(connectSSE, reconnectDelay);
+                } else {
+                    helpers.showError('Falha na conexão com o servidor');
+                }
+            };
+        }
+
+        // Update display with animation
+        function updateDisplay(data) {
+            highlightUpdate(elements.avgVoltage, helpers.formatVoltage(data.voltagem_media));
+            highlightUpdate(elements.importPower, helpers.formatNumber(data.importacao_rede));
+            highlightUpdate(elements.generationPower, helpers.formatNumber(data.painel_solar));
+            highlightUpdate(elements.consumptionPower, helpers.formatNumber(data.consumo_casa));
+            highlightUpdate(elements.evPower, helpers.formatNumber(data.carregador_ev));
+            
+            elements.lastUpdate.textContent = `Última atualização: ${helpers.formatTime(data.timestamp)}`;
+        }
+
+        function highlightUpdate(element, newValue) {
+            if (element.textContent !== newValue) {
+                element.textContent = newValue;
+                element.classList.add('data-update');
+                setTimeout(() => {
+                    element.classList.remove('data-update');
+                }, 500);
+            }
+        }
+
+        // Manual refresh function
+        function manualRefresh() {
+            helpers.setLoading(true);
+            fetch('/api/refresh', {
+                method: 'POST'
+            })
+            .then(response => {
+                if (!response.ok) throw new Error('Falha na atualização');
+                return fetch('/api/energy');
+            })
+            .then(response => response.json())
+            .then(data => {
+                updateDisplay(data);
+                helpers.setLoading(false);
+            })
+            .catch(error => {
+                console.error('Manual refresh error:', error);
+                helpers.showError('Erro na atualização');
+                helpers.setLoading(false);
+            });
+        }
+
+        // Setup refresh button
+        elements.refreshBtn.addEventListener('click', manualRefresh);
+
+        // Initial connection
+        connectSSE();
+
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', () => {
+            if (eventSource) eventSource.close();
+            clearTimeout(reconnectTimeout);
+        });
+    </script>
+</body>
+</html>
